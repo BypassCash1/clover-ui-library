@@ -544,25 +544,28 @@ function Clover:new(props)
     local toggled = true
     local cooldown = false
     --
-    -- Close button functionality
-    closebutton.MouseButton1Down:Connect(function()
+    -- Close button functionality - hides entire UI
+    local function toggleUI()
         if cooldown == false then
             cooldown = true
             if toggled then
-                -- Hide UI
+                -- Hide entire UI
                 toggled = false
                 closebutton_text.Text = "+"
-                holder.Visible = false
+                outline.Visible = false
             else
-                -- Show UI
+                -- Show entire UI
                 toggled = true
                 closebutton_text.Text = "-"
-                holder.Visible = true
+                outline.Visible = true
             end
             wait(0.2)
             cooldown = false
         end
-    end)
+    end
+    --
+    closebutton.MouseButton1Down:Connect(toggleUI)
+    closebutton.TouchTap:Connect(toggleUI)
     --
     -- Button hover effects
     closebutton.MouseEnter:Connect(function()
@@ -576,22 +579,7 @@ function Clover:new(props)
     uis.InputBegan:Connect(function(Input)
         if Input.UserInputType == Enum.UserInputType.Keyboard then
             if Input.KeyCode == window.key then
-                if cooldown == false then
-                    cooldown = true
-                    if toggled then
-                        -- Hide UI
-                        toggled = false
-                        closebutton_text.Text = "+"
-                        holder.Visible = false
-                    else
-                        -- Show UI
-                        toggled = true
-                        closebutton_text.Text = "-"
-                        holder.Visible = true
-                    end
-                    wait(0.2)
-                    cooldown = false
-                end
+                toggleUI()
             end
         end
     end)
