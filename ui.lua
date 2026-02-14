@@ -236,6 +236,75 @@ function Clover:new(props)
         }
     )
     --
+    -- External Close/Open Button (outside UI, top right corner)
+    local closebutton_holder = utility.new(
+        "Frame",
+        {
+            AnchorPoint = Vector2.new(1, 0),
+            BackgroundColor3 = color,
+            BorderColor3 = Color3.fromRGB(12, 12, 12),
+            BorderSizePixel = 1,
+            Size = UDim2.new(0, 50, 0, 50),
+            Position = UDim2.new(1, -10, 0, 10),
+            ZIndex = 10000,
+            Parent = screen
+        }
+    )
+    --
+    local closebutton_outline = utility.new(
+        "Frame",
+        {
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+            BorderColor3 = Color3.fromRGB(12, 12, 12),
+            BorderSizePixel = 1,
+            Size = UDim2.new(1, -4, 1, -4),
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            Parent = closebutton_holder
+        }
+    )
+    --
+    local closebutton_inline = utility.new(
+        "Frame",
+        {
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+            BorderColor3 = Color3.fromRGB(56, 56, 56),
+            BorderMode = "Inset",
+            BorderSizePixel = 1,
+            Size = UDim2.new(1, 0, 1, 0),
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            Parent = closebutton_outline
+        }
+    )
+    --
+    local closebutton_text = utility.new(
+        "TextLabel",
+        {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 1, 0),
+            Font = font,
+            Text = "-",
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextSize = 24,
+            TextStrokeTransparency = 0,
+            Parent = closebutton_inline
+        }
+    )
+    --
+    local closebutton = utility.new(
+        "TextButton",
+        {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 1, 0),
+            Text = "",
+            Parent = closebutton_inline
+        }
+    )
+    --
+    -- Make button draggable
+    utility.dragify(closebutton_holder)
+    --
     if (check_exploit == "Synapse" and syn.request) then
         syn.protect_gui(screen)
     end
@@ -378,7 +447,7 @@ function Clover:new(props)
             RichText = true,
             AnchorPoint = Vector2.new(0.5, 0),
             BackgroundTransparency = 1,
-            Size = UDim2.new(1, -50, 1, 0),
+            Size = UDim2.new(1, 0, 1, 0),
             Position = UDim2.new(0.5, 0, 0, 0),
             Font = font,
             Text = name,
@@ -387,55 +456,6 @@ function Clover:new(props)
             TextSize = textsize,
             TextStrokeTransparency = 0,
             Parent = title
-        }
-    )
-    --
-    -- Close/Open Button
-    local closebutton_holder = utility.new(
-        "Frame",
-        {
-            AnchorPoint = Vector2.new(1, 0),
-            BackgroundColor3 = Color3.fromRGB(24, 24, 24),
-            BorderColor3 = Color3.fromRGB(12, 12, 12),
-            BorderSizePixel = 1,
-            Size = UDim2.new(0, 50, 0, 22),
-            Position = UDim2.new(1, -5, 0, 0),
-            Parent = title
-        }
-    )
-    --
-    local closebutton_outline = utility.new(
-        "Frame",
-        {
-            BackgroundColor3 = Color3.fromRGB(30, 30, 30),
-            BorderColor3 = Color3.fromRGB(56, 56, 56),
-            BorderSizePixel = 1,
-            Size = UDim2.new(1, 0, 1, 0),
-            Parent = closebutton_holder
-        }
-    )
-    --
-    local closebutton_text = utility.new(
-        "TextLabel",
-        {
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 1, 0),
-            Font = font,
-            Text = "-",
-            TextColor3 = Color3.fromRGB(255, 255, 255),
-            TextSize = textsize + 6,
-            TextStrokeTransparency = 0,
-            Parent = closebutton_holder
-        }
-    )
-    --
-    local closebutton = utility.new(
-        "TextButton",
-        {
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 1, 0),
-            Text = "",
-            Parent = closebutton_holder
         }
     )
     -- 6
@@ -569,11 +589,11 @@ function Clover:new(props)
     --
     -- Button hover effects
     closebutton.MouseEnter:Connect(function()
-        closebutton_outline.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        closebutton_inline.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     end)
     --
     closebutton.MouseLeave:Connect(function()
-        closebutton_outline.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        closebutton_inline.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
     end)
     --
     uis.InputBegan:Connect(function(Input)
