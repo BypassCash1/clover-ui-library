@@ -398,8 +398,8 @@ function Clover:new(props)
             BackgroundColor3 = Color3.fromRGB(24, 24, 24),
             BorderColor3 = Color3.fromRGB(12, 12, 12),
             BorderSizePixel = 1,
-            Size = UDim2.new(0, 40, 0, 18),
-            Position = UDim2.new(1, -5, 0, 1),
+            Size = UDim2.new(0, 50, 0, 22),
+            Position = UDim2.new(1, -5, 0, 0),
             Parent = title
         }
     )
@@ -423,7 +423,7 @@ function Clover:new(props)
             Font = font,
             Text = "-",
             TextColor3 = Color3.fromRGB(255, 255, 255),
-            TextSize = textsize + 4,
+            TextSize = textsize + 6,
             TextStrokeTransparency = 0,
             Parent = closebutton_holder
         }
@@ -439,17 +439,6 @@ function Clover:new(props)
         }
     )
     -- 6
-    local holder = utility.new(
-        "Frame",
-        {
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, -6, 1, -6),
-            Position = UDim2.new(0.5, 0, 0.5, 0),
-            Parent = main
-        }
-    )
-    -- 7
     local holder = utility.new(
         "Frame",
         {
@@ -554,106 +543,54 @@ function Clover:new(props)
     --
     local toggled = true
     local cooldown = false
-    local saved = UDim2.new(0, 0, 0, 0)
     --
     -- Close button functionality
     closebutton.MouseButton1Down:Connect(function()
         if cooldown == false then
+            cooldown = true
             if toggled then
-                cooldown = true
+                -- Hide UI
                 toggled = false
                 closebutton_text.Text = "+"
-                saved = outline.Position
-                local xx, yy = 0, 0
-                local xxx, yyy = 0, 0
-                --
-                if (outline.AbsolutePosition.X + (outline.AbsoluteSize.X / 2)) < (cam.ViewportSize.X / 2) then
-                    xx = -3
-                else
-                    xx = 3
-                end
-                --
-                if window.y then
-                    if (outline.AbsolutePosition.Y + (outline.AbsoluteSize.Y / 2)) < (cam.ViewportSize.Y / 2) then
-                        yy = -3
-                    else
-                        yy = 3
-                    end
-                else
-                    yy = saved.Y.Scale
-                    yyy = saved.Y.Offset
-                end
-                --
-                if window.x == false and window.y == false then
-                    screen.Enabled = false
-                else
-                    ts:Create(outline, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = UDim2.new(xx, xxx, yy, yyy)}):Play()
-                end
-                wait(0.5)
-                cooldown = false
+                holder.Visible = false
             else
-                cooldown = true
+                -- Show UI
                 toggled = true
                 closebutton_text.Text = "-"
-                if window.x == false and window.y == false then
-                    screen.Enabled = true
-                else
-                    ts:Create(outline, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = saved}):Play()
-                end
-                wait(0.5)
-                cooldown = false
+                holder.Visible = true
             end
+            wait(0.2)
+            cooldown = false
         end
+    end)
+    --
+    -- Button hover effects
+    closebutton.MouseEnter:Connect(function()
+        closebutton_outline.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    end)
+    --
+    closebutton.MouseLeave:Connect(function()
+        closebutton_outline.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     end)
     --
     uis.InputBegan:Connect(function(Input)
         if Input.UserInputType == Enum.UserInputType.Keyboard then
             if Input.KeyCode == window.key then
                 if cooldown == false then
+                    cooldown = true
                     if toggled then
-                        cooldown = true
-                        toggled = not toggled
+                        -- Hide UI
+                        toggled = false
                         closebutton_text.Text = "+"
-                        saved = outline.Position
-                        local xx, yy = 0, 0
-                        local xxx, yyy = 0, 0
-                        --
-                        if (outline.AbsolutePosition.X + (outline.AbsoluteSize.X / 2)) < (cam.ViewportSize.X / 2) then
-                            xx = -3
-                        else
-                            xx = 3
-                        end
-                        --
-                        if window.y then
-                            if (outline.AbsolutePosition.Y + (outline.AbsoluteSize.Y / 2)) < (cam.ViewportSize.Y / 2) then
-                                yy = -3
-                            else
-                                yy = 3
-                            end
-                        else
-                            yy = saved.Y.Scale
-                            yyy = saved.Y.Offset
-                        end
-                        --
-                        if window.x == false and window.y == false then
-                            screen.Enabled = false
-                        else
-                            ts:Create(outline, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = UDim2.new(xx, xxx, yy, yyy)}):Play()
-                        end
-                        wait(0.5)
-                        cooldown = false
+                        holder.Visible = false
                     else
-                        cooldown = true
-                        toggled = not toggled
+                        -- Show UI
+                        toggled = true
                         closebutton_text.Text = "-"
-                        if window.x == false and window.y == false then
-                            screen.Enabled = true
-                        else
-                            ts:Create(outline, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = saved}):Play()
-                        end
-                        wait(0.5)
-                        cooldown = false
+                        holder.Visible = true
                     end
+                    wait(0.2)
+                    cooldown = false
                 end
             end
         end
@@ -1223,20 +1160,13 @@ function Clover:page(props)
 	)
 	--
 	local left = utility.new(
-		"ScrollingFrame",
+		"Frame",
 		{
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
 			Size = UDim2.new(0.5,-5,1,0),
 			Position = UDim2.new(0,0,0,0),
-			AutomaticCanvasSize = "Y",
-			CanvasSize = UDim2.new(0,0,0,0),
-			ScrollBarImageTransparency = 1,
-			ScrollBarImageColor3 = Color3.fromRGB(0,0,0),
-			ScrollBarThickness = 0,
 			ClipsDescendants = false,
-			VerticalScrollBarInset = "None",
-			VerticalScrollBarPosition = "Right",
 			Parent = pageholder
 		}
 	)
@@ -1251,21 +1181,14 @@ function Clover:page(props)
 	)
 	--
 	local right = utility.new(
-		"ScrollingFrame",
+		"Frame",
 		{
 			AnchorPoint = Vector2.new(1,0),
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
 			Size = UDim2.new(0.5,-5,1,0),
 			Position = UDim2.new(1,0,0,0),
-			AutomaticCanvasSize = "Y",
-			CanvasSize = UDim2.new(0,0,0,0),
-			ScrollBarImageTransparency = 1,
-			ScrollBarImageColor3 = Color3.fromRGB(0,0,0),
-			ScrollBarThickness = 0,
 			ClipsDescendants = false,
-			VerticalScrollBarInset = "None",
-			VerticalScrollBarPosition = "Right",
 			Parent = pageholder
 		}
 	)
@@ -1358,7 +1281,7 @@ function pages:section(props)
 	-- // properties
 	local name = props.name or props.Name or props.page or props.Page or props.pagename or props.Pagename or props.PageName or props.pageName or "new ui"
 	local side = props.side or props.Side or props.sectionside or props.Sectionside or props.SectionSide or props.sectionSide or "left"
-	local size = props.size or props.Size or props.yaxis or props.yAxis or props.YAxis or props.Yaxis or 200
+	local size = props.size or props.Size or props.yaxis or props.yAxis or props.YAxis or props.Yaxis or 400
 	side = side:lower()
 	-- // variables
 	local section = {}
@@ -1402,21 +1325,14 @@ function pages:section(props)
 	table.insert(self.library.themeitems["accent"]["BackgroundColor3"],color)
 	--
 	local content = utility.new(
-		"ScrollingFrame",
+		"Frame",
 		{
 			AnchorPoint = Vector2.new(0.5,1),
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
 			Size = UDim2.new(1,-12,1,-25),
 			Position = UDim2.new(0.5,0,1,-5),
-			AutomaticCanvasSize = "Y",
-			CanvasSize = UDim2.new(0,0,0,0),
-			ScrollBarImageTransparency = 0.5,
-			ScrollBarImageColor3 = Color3.fromRGB(255,255,255),
-			ScrollBarThickness = 3,
-			ClipsDescendants = true,
-			VerticalScrollBarInset = "ScrollBar",
-			VerticalScrollBarPosition = "Right",
+			ClipsDescendants = false,
 			Parent = outline
 		}
 	)
@@ -1472,7 +1388,7 @@ function pages:multisection(props)
 	-- // properties
 	local name = props.name or props.Name or props.page or props.Page or props.pagename or props.Pagename or props.PageName or props.pageName or "new ui"
 	local side = props.side or props.Side or props.sectionside or props.Sectionside or props.SectionSide or props.sectionSide or "left"
-	local size = props.size or props.Size or props.yaxis or props.yAxis or props.YAxis or props.Yaxis or 200
+	local size = props.size or props.Size or props.yaxis or props.yAxis or props.YAxis or props.Yaxis or 400
 	side = side:lower()
 	-- // variables
 	local multisection = {}
@@ -1713,21 +1629,14 @@ function multisections:section(props)
 	)
 	--
 	local content = utility.new(
-		"ScrollingFrame",
+		"Frame",
 		{
 			AnchorPoint = Vector2.new(0.5,1),
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
 			Size = UDim2.new(1,-6,1,-27),
 			Position = UDim2.new(0.5,0,1,-3),
-			AutomaticCanvasSize = "Y",
-			CanvasSize = UDim2.new(0,0,0,0),
-			ScrollBarImageTransparency = 0.5,
-			ScrollBarImageColor3 = Color3.fromRGB(255,255,255),
-			ScrollBarThickness = 3,
-			ClipsDescendants = true,
-			VerticalScrollBarInset = "ScrollBar",
-			VerticalScrollBarPosition = "Right",
+			ClipsDescendants = false,
 			Parent = self.tabs_outline
 		}
 	)
