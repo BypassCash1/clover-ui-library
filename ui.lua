@@ -59,15 +59,43 @@ utility.new = function(instance,properties)
 	return ins
 end
 --
+utility.getDeviceType = function()
+	-- Detect device type: "phone", "tablet", or "pc"
+	local viewportSize = cam.ViewportSize
+	local isTouchDevice = uis.TouchEnabled and not uis.KeyboardEnabled
+	
+	if not isTouchDevice then
+		return "pc"
+	end
+	
+	-- Phone: smaller screens (typically < 600px on smallest dimension)
+	-- Tablet: medium screens (600-1024px)
+	local smallestDimension = math.min(viewportSize.X, viewportSize.Y)
+	
+	if smallestDimension < 600 then
+		return "phone"
+	elseif smallestDimension < 1024 then
+		return "tablet"
+	else
+		return "tablet" -- Large tablets
+	end
+end
+--
 utility.dragify = function(ins,touse)
 	local dragging
 	local dragInput
 	local dragStart
 	local startPos
+	local touchId
 	--
 	local function update(input)
 		local delta = input.Position - dragStart
-		touse:TweenPosition(UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y),Enum.EasingDirection.Out,Enum.EasingStyle.Quad,0.1,true)
+		-- Instant position update for touch devices for smoother feel
+		if input.UserInputType == Enum.UserInputType.Touch then
+			touse.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		else
+			touse:TweenPosition(UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y),Enum.EasingDirection.Out,Enum.EasingStyle.Quad,0.05,true)
+		end
 	end
 	--
 	ins.InputBegan:Connect(function(input)
@@ -83,10 +111,14 @@ utility.dragify = function(ins,touse)
 			dragging = true
 			dragStart = input.Position
 			startPos = touse.Position
+			if input.UserInputType == Enum.UserInputType.Touch then
+				touchId = input
+			end
 
 			input.Changed:Connect(function()
 				if input.UserInputState == Enum.UserInputState.End then
 					dragging = false
+					touchId = nil
 				end
 			end)
 		end
@@ -99,15 +131,31 @@ utility.dragify = function(ins,touse)
 	end)
 	--
 	uis.InputChanged:Connect(function(input)
-		if input == dragInput and dragging then
-			-- Double check no slider/colorpicker is active
-			for _,slider in pairs(sliders) do
-				if slider.holding then return end
+		if dragging then
+			-- For touch, only respond to the specific touch that started dragging
+			if input.UserInputType == Enum.UserInputType.Touch and touchId and input ~= touchId then
+				return
 			end
-			for _,cp in pairs(colorpickers) do
-				if cp.cp or cp.hue then return end
+			
+			if input == dragInput then
+				-- Double check no slider/colorpicker is active
+				for _,slider in pairs(sliders) do
+					if slider.holding then return end
+				end
+				for _,cp in pairs(colorpickers) do
+					if cp.cp or cp.hue then return end
+				end
+				update(input)
 			end
-			update(input)
+		end
+	end)
+	--
+	uis.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch then
+			if touchId == input then
+				dragging = false
+				touchId = nil
+			end
 		end
 	end)
 end
@@ -153,11 +201,25 @@ function Clover:new(props)
     local name = props.name or props.Name or props.UiName or props.Uiname or props.uiName or props.username or props.Username or props.UserName or props.userName or "new ui"
     local color = props.color or props.Color or props.mainColor or props.maincolor or props.MainColor or props.Maincolor or props.Accent or props.accent or Color3.fromRGB(225, 58, 81)
     
-    -- Mobile-responsive sizing
+    -- Device-specific sizing
     local viewportSize = cam.ViewportSize
-    local isMobile = uis.TouchEnabled and not uis.KeyboardEnabled
-    local defaultWidth = isMobile and math.min(viewportSize.X * 0.95, 400) or 500
-    local defaultHeight = isMobile and math.min(viewportSize.Y * 0.85, 500) or 606
+    local deviceType = utility.getDeviceType()
+    local defaultWidth, defaultHeight
+    
+    if deviceType == "phone" then
+        -- Phone: Use most of the screen, optimized for portrait/landscape
+        defaultWidth = math.min(viewportSize.X * 0.95, 380)
+        defaultHeight = math.min(viewportSize.Y * 0.80, 520)
+    elseif deviceType == "tablet" then
+        -- Tablet: Medium size, more breathing room
+        defaultWidth = math.min(viewportSize.X * 0.85, 600)
+        defaultHeight = math.min(viewportSize.Y * 0.75, 600)
+    else
+        -- PC: Full-sized UI
+        defaultWidth = 700
+        defaultHeight = 650
+    end
+    
     local menuSize = props.size or UDim2.new(0, defaultWidth, 0, defaultHeight)
     
     -- // variables
@@ -191,15 +253,58 @@ function Clover:new(props)
         }
     )
     --
-    -- Mobile size constraints
-    utility.new(
+    -- Device-specific size constraints
+    local minWidth, minHeight, maxWidth, maxHeight
+    
+    if deviceType == "phone" then
+        minWidth = 280
+        minHeight = 350
+        maxWidth = viewportSize.X * 0.98
+        maxHeight = viewportSize.Y * 0.85
+    elseif deviceType == "tablet" then
+        minWidth = 350
+        minHeight = 400
+        maxWidth = viewportSize.X * 0.90
+        maxHeight = viewportSize.Y * 0.80
+    else
+        minWidth = 500
+        minHeight = 500
+        maxWidth = viewportSize.X * 0.95
+        maxHeight = viewportSize.Y * 0.95
+    end
+    
+    local sizeConstraint = utility.new(
         "UISizeConstraint",
         {
-            MinSize = Vector2.new(300, 400),
-            MaxSize = Vector2.new(viewportSize.X * 0.95, viewportSize.Y * 0.95),
+            MinSize = Vector2.new(minWidth, minHeight),
+            MaxSize = Vector2.new(maxWidth, maxHeight),
             Parent = outline
         }
     )
+    
+    -- Handle screen rotation/resize for mobile devices
+    if deviceType == "phone" or deviceType == "tablet" then
+        cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+            local newViewportSize = cam.ViewportSize
+            local newDeviceType = utility.getDeviceType()
+            
+            -- Update size constraints on rotation
+            if newDeviceType == "phone" then
+                sizeConstraint.MinSize = Vector2.new(280, 350)
+                sizeConstraint.MaxSize = Vector2.new(newViewportSize.X * 0.98, newViewportSize.Y * 0.85)
+                -- Auto-resize UI for phone
+                outline.Size = UDim2.new(0, math.min(newViewportSize.X * 0.95, 380), 0, math.min(newViewportSize.Y * 0.80, 520))
+            elseif newDeviceType == "tablet" then
+                sizeConstraint.MinSize = Vector2.new(350, 400)
+                sizeConstraint.MaxSize = Vector2.new(newViewportSize.X * 0.90, newViewportSize.Y * 0.80)
+                -- Auto-resize UI for tablet
+                outline.Size = UDim2.new(0, math.min(newViewportSize.X * 0.85, 600), 0, math.min(newViewportSize.Y * 0.75, 600))
+            end
+            
+            -- Re-center UI
+            outline.Position = UDim2.new(0.5, 0, 0.5, 0)
+        end)
+    end
     -- 2
     local outline2 = utility.new(
         "Frame",
@@ -273,7 +378,7 @@ function Clover:new(props)
             RichText = true,
             AnchorPoint = Vector2.new(0.5, 0),
             BackgroundTransparency = 1,
-            Size = UDim2.new(1, -10, 1, 0),
+            Size = UDim2.new(1, -50, 1, 0),
             Position = UDim2.new(0.5, 0, 0, 0),
             Font = font,
             Text = name,
@@ -282,6 +387,55 @@ function Clover:new(props)
             TextSize = textsize,
             TextStrokeTransparency = 0,
             Parent = title
+        }
+    )
+    --
+    -- Close/Open Button
+    local closebutton_holder = utility.new(
+        "Frame",
+        {
+            AnchorPoint = Vector2.new(1, 0),
+            BackgroundColor3 = Color3.fromRGB(24, 24, 24),
+            BorderColor3 = Color3.fromRGB(12, 12, 12),
+            BorderSizePixel = 1,
+            Size = UDim2.new(0, 40, 0, 18),
+            Position = UDim2.new(1, -5, 0, 1),
+            Parent = title
+        }
+    )
+    --
+    local closebutton_outline = utility.new(
+        "Frame",
+        {
+            BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+            BorderColor3 = Color3.fromRGB(56, 56, 56),
+            BorderSizePixel = 1,
+            Size = UDim2.new(1, 0, 1, 0),
+            Parent = closebutton_holder
+        }
+    )
+    --
+    local closebutton_text = utility.new(
+        "TextLabel",
+        {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 1, 0),
+            Font = font,
+            Text = "-",
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextSize = textsize + 4,
+            TextStrokeTransparency = 0,
+            Parent = closebutton_holder
+        }
+    )
+    --
+    local closebutton = utility.new(
+        "TextButton",
+        {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 1, 0),
+            Text = "",
+            Parent = closebutton_holder
         }
     )
     -- 6
@@ -322,12 +476,18 @@ function Clover:new(props)
     )
     --
     local tabsbuttons = utility.new(
-        "Frame",
+        "ScrollingFrame",
         {
             AnchorPoint = Vector2.new(0.5, 0),
             BackgroundTransparency = 1,
             Size = UDim2.new(1, 0, 0, 21),
             Position = UDim2.new(0.5, 0, 0, 0),
+            AutomaticCanvasSize = "X",
+            CanvasSize = UDim2.new(0, 0, 0, 0),
+            ScrollBarImageTransparency = 1,
+            ScrollBarThickness = 0,
+            ScrollingDirection = "X",
+            ClipsDescendants = true,
             ZIndex = 2,
             Parent = holder
         }
@@ -375,6 +535,9 @@ function Clover:new(props)
         ["key"] = Enum.KeyCode.RightShift,
         ["textsize"] = textsize,
         ["font"] = font,
+        ["closebutton_text"] = closebutton_text,
+        ["deviceType"] = deviceType,
+        ["viewportSize"] = viewportSize,
         ["theme"] = {
             ["accent"] = color
         },
@@ -393,6 +556,56 @@ function Clover:new(props)
     local cooldown = false
     local saved = UDim2.new(0, 0, 0, 0)
     --
+    -- Close button functionality
+    closebutton.MouseButton1Down:Connect(function()
+        if cooldown == false then
+            if toggled then
+                cooldown = true
+                toggled = false
+                closebutton_text.Text = "+"
+                saved = outline.Position
+                local xx, yy = 0, 0
+                local xxx, yyy = 0, 0
+                --
+                if (outline.AbsolutePosition.X + (outline.AbsoluteSize.X / 2)) < (cam.ViewportSize.X / 2) then
+                    xx = -3
+                else
+                    xx = 3
+                end
+                --
+                if window.y then
+                    if (outline.AbsolutePosition.Y + (outline.AbsoluteSize.Y / 2)) < (cam.ViewportSize.Y / 2) then
+                        yy = -3
+                    else
+                        yy = 3
+                    end
+                else
+                    yy = saved.Y.Scale
+                    yyy = saved.Y.Offset
+                end
+                --
+                if window.x == false and window.y == false then
+                    screen.Enabled = false
+                else
+                    ts:Create(outline, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = UDim2.new(xx, xxx, yy, yyy)}):Play()
+                end
+                wait(0.5)
+                cooldown = false
+            else
+                cooldown = true
+                toggled = true
+                closebutton_text.Text = "-"
+                if window.x == false and window.y == false then
+                    screen.Enabled = true
+                else
+                    ts:Create(outline, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = saved}):Play()
+                end
+                wait(0.5)
+                cooldown = false
+            end
+        end
+    end)
+    --
     uis.InputBegan:Connect(function(Input)
         if Input.UserInputType == Enum.UserInputType.Keyboard then
             if Input.KeyCode == window.key then
@@ -400,6 +613,7 @@ function Clover:new(props)
                     if toggled then
                         cooldown = true
                         toggled = not toggled
+                        closebutton_text.Text = "+"
                         saved = outline.Position
                         local xx, yy = 0, 0
                         local xxx, yyy = 0, 0
@@ -431,6 +645,7 @@ function Clover:new(props)
                     else
                         cooldown = true
                         toggled = not toggled
+                        closebutton_text.Text = "-"
                         if window.x == false and window.y == false then
                             screen.Enabled = true
                         else
@@ -1187,13 +1402,21 @@ function pages:section(props)
 	table.insert(self.library.themeitems["accent"]["BackgroundColor3"],color)
 	--
 	local content = utility.new(
-		"Frame",
+		"ScrollingFrame",
 		{
 			AnchorPoint = Vector2.new(0.5,1),
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
 			Size = UDim2.new(1,-12,1,-25),
 			Position = UDim2.new(0.5,0,1,-5),
+			AutomaticCanvasSize = "Y",
+			CanvasSize = UDim2.new(0,0,0,0),
+			ScrollBarImageTransparency = 0.5,
+			ScrollBarImageColor3 = Color3.fromRGB(255,255,255),
+			ScrollBarThickness = 3,
+			ClipsDescendants = true,
+			VerticalScrollBarInset = "ScrollBar",
+			VerticalScrollBarPosition = "Right",
 			Parent = outline
 		}
 	)
@@ -1490,13 +1713,21 @@ function multisections:section(props)
 	)
 	--
 	local content = utility.new(
-		"Frame",
+		"ScrollingFrame",
 		{
 			AnchorPoint = Vector2.new(0.5,1),
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
 			Size = UDim2.new(1,-6,1,-27),
 			Position = UDim2.new(0.5,0,1,-3),
+			AutomaticCanvasSize = "Y",
+			CanvasSize = UDim2.new(0,0,0,0),
+			ScrollBarImageTransparency = 0.5,
+			ScrollBarImageColor3 = Color3.fromRGB(255,255,255),
+			ScrollBarThickness = 3,
+			ClipsDescendants = true,
+			VerticalScrollBarInset = "ScrollBar",
+			VerticalScrollBarPosition = "Right",
 			Parent = self.tabs_outline
 		}
 	)
@@ -4714,17 +4945,6 @@ function Clover:loader(props)
 		syn.protect_gui(loaderscreen)
 	end
 	--
-	local background = utility.new(
-		"Frame",
-		{
-			BackgroundColor3 = Color3.fromRGB(15, 15, 15),
-			BorderSizePixel = 0,
-			Size = UDim2.new(1, 0, 1, 0),
-			Position = UDim2.new(0, 0, 0, 0),
-			Parent = loaderscreen
-		}
-	)
-	--
 	local viewportSize = cam.ViewportSize
 	local isMobile = uis.TouchEnabled and not uis.KeyboardEnabled
 	local boxWidth = isMobile and math.min(viewportSize.X * 0.9, 350) or 400
@@ -4739,7 +4959,7 @@ function Clover:loader(props)
 			BorderSizePixel = 1,
 			Size = UDim2.new(0, boxWidth, 0, boxHeight),
 			Position = UDim2.new(0.5, 0, 0.5, 0),
-			Parent = background
+			Parent = loaderscreen
 		}
 	)
 	--
@@ -4897,8 +5117,7 @@ function Clover:loader(props)
 	wait(loadTime)
 	callback()
 	--
-	-- Fade out
-	ts:Create(background, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+	-- Fade out (no background frame)
 	ts:Create(container, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
 	ts:Create(container2, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
 	ts:Create(container3, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
@@ -4913,5 +5132,171 @@ function Clover:loader(props)
 	--
 	wait(0.5)
 	loaderscreen:Destroy()
+end
+--
+function Clover:notification(props)
+	-- // properties
+	local title = props.title or props.Title or "Clover"
+	local message = props.message or props.Message or props.text or props.Text or "Notification"
+	local duration = props.duration or props.Duration or props.time or props.Time or 3
+	local color = props.color or props.Color or props.accent or props.Accent or Color3.fromRGB(225, 58, 81)
+	--
+	-- Device-aware sizing
+	local deviceType = utility.getDeviceType()
+	local notifWidth, notifHeight, titleSize, messageSize
+	
+	if deviceType == "phone" then
+		notifWidth = 280
+		notifHeight = 70
+		titleSize = 12
+		messageSize = 10
+	elseif deviceType == "tablet" then
+		notifWidth = 320
+		notifHeight = 75
+		titleSize = 13
+		messageSize = 11
+	else
+		notifWidth = 300
+		notifHeight = 80
+		titleSize = 14
+		messageSize = 12
+	end
+	--
+	local notif_screen = utility.new(
+		"ScreenGui",
+		{
+			Name = "CloverNotif_"..tostring(math.random(0, 999999)),
+			DisplayOrder = 99999,
+			ResetOnSpawn = false,
+			ZIndexBehavior = "Global",
+			Parent = cre
+		}
+	)
+	--
+	if (check_exploit == "Synapse" and syn.request) then
+		syn.protect_gui(notif_screen)
+	end
+	--
+	local notif_holder = utility.new(
+		"Frame",
+		{
+			AnchorPoint = Vector2.new(1, 0),
+			BackgroundColor3 = color,
+			BorderColor3 = Color3.fromRGB(12, 12, 12),
+			BorderSizePixel = 1,
+			Size = UDim2.new(0, notifWidth, 0, notifHeight),
+			Position = UDim2.new(1.5, 0, 0, 10),
+			Parent = notif_screen
+		}
+	)
+	--
+	local notif_outline = utility.new(
+		"Frame",
+		{
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+			BorderColor3 = Color3.fromRGB(12, 12, 12),
+			BorderSizePixel = 1,
+			Size = UDim2.new(1, -4, 1, -4),
+			Position = UDim2.new(0.5, 0, 0.5, 0),
+			Parent = notif_holder
+		}
+	)
+	--
+	local notif_inline = utility.new(
+		"Frame",
+		{
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+			BorderColor3 = Color3.fromRGB(56, 56, 56),
+			BorderMode = "Inset",
+			BorderSizePixel = 1,
+			Size = UDim2.new(1, 0, 1, 0),
+			Position = UDim2.new(0.5, 0, 0.5, 0),
+			Parent = notif_outline
+		}
+	)
+	--
+	local notif_accent = utility.new(
+		"Frame",
+		{
+			AnchorPoint = Vector2.new(0.5, 0),
+			BackgroundColor3 = color,
+			BorderSizePixel = 0,
+			Size = UDim2.new(1, -2, 0, 1),
+			Position = UDim2.new(0.5, 0, 0, 0),
+			Parent = notif_inline
+		}
+	)
+	--
+	local notif_title = utility.new(
+		"TextLabel",
+		{
+			BackgroundTransparency = 1,
+			Size = UDim2.new(1, -10, 0, 20),
+			Position = UDim2.new(0, 5, 0, 5),
+			Font = "RobotoMono",
+			Text = title,
+			TextColor3 = Color3.fromRGB(255, 255, 255),
+			TextSize = titleSize,
+			TextStrokeTransparency = 0,
+			TextXAlignment = "Left",
+			TextYAlignment = "Top",
+			Parent = notif_inline
+		}
+	)
+	--
+	local notif_message = utility.new(
+		"TextLabel",
+		{
+			BackgroundTransparency = 1,
+			Size = UDim2.new(1, -10, 1, -30),
+			Position = UDim2.new(0, 5, 0, 25),
+			Font = "RobotoMono",
+			Text = message,
+			TextColor3 = Color3.fromRGB(200, 200, 200),
+			TextSize = messageSize,
+			TextStrokeTransparency = 0,
+			TextXAlignment = "Left",
+			TextYAlignment = "Top",
+			TextWrapped = true,
+			Parent = notif_inline
+		}
+	)
+	--
+	local notif_timer = utility.new(
+		"Frame",
+		{
+			AnchorPoint = Vector2.new(0, 1),
+			BackgroundColor3 = color,
+			BorderSizePixel = 0,
+			Size = UDim2.new(1, 0, 0, 2),
+			Position = UDim2.new(0, 0, 1, 0),
+			Parent = notif_inline
+		}
+	)
+	--
+	utility.new(
+		"UIGradient",
+		{
+			Color = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(199, 191, 204)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 255, 255))},
+			Rotation = 90,
+			Parent = notif_timer
+		}
+	)
+	--
+	-- Slide in
+	ts:Create(notif_holder, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(1, -10, 0, 10)}):Play()
+	--
+	-- Timer animation
+	ts:Create(notif_timer, TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut), {Size = UDim2.new(0, 0, 0, 2)}):Play()
+	--
+	wait(duration)
+	--
+	-- Slide out
+	ts:Create(notif_holder, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = UDim2.new(1.5, 0, 0, 10)}):Play()
+	--
+	wait(0.5)
+	notif_screen:Destroy()
 end
 return Clover
